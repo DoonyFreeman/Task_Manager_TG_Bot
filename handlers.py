@@ -13,6 +13,7 @@ from keyboards import (
     confirm_kb,
     tasks_list_kb,
     task_action_kb,
+    calendar_kb,
 )
 from scheduler import schedule_reminder
 
@@ -24,6 +25,7 @@ class TaskStates(StatesGroup):
     waiting_date = State()
     waiting_time = State()
     confirming = State()
+    waiting_calendar = State()
 
 
 @router.message(F.text == "📋 Мои задачи")
@@ -85,6 +87,51 @@ async def select_date(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         "🕐 Выбери время:", reply_markup=time_selection_kb()
     )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "show_calendar", TaskStates.waiting_date)
+async def show_calendar(callback: CallbackQuery, state: FSMContext):
+    now = datetime.now()
+    await state.set_state(TaskStates.waiting_calendar)
+    await callback.message.edit_text(
+        "📅 Выбери дату:", reply_markup=calendar_kb(now.year, now.month)
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("cal_nav_"), TaskStates.waiting_calendar)
+async def calendar_navigate(callback: CallbackQuery, state: FSMContext):
+    parts = callback.data.replace("cal_nav_", "").split("_")
+    year, month = int(parts[0]), int(parts[1])
+    await callback.message.edit_reply_markup(reply_markup=calendar_kb(year, month))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("cal_day_"), TaskStates.waiting_calendar)
+async def calendar_select_day(callback: CallbackQuery, state: FSMContext):
+    parts = callback.data.replace("cal_day_", "").split("_")
+    year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+    date_str = f"{year}-{month:02d}-{day:02d}"
+    await state.update_data(selected_date=date_str)
+    await state.set_state(TaskStates.waiting_time)
+    await callback.message.edit_text(
+        "🕐 Выбери время:", reply_markup=time_selection_kb()
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "cal_back", TaskStates.waiting_calendar)
+async def calendar_back(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(TaskStates.waiting_date)
+    await callback.message.edit_text(
+        "📅 Выбери дату:", reply_markup=date_selection_kb()
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "cal_nop", TaskStates.waiting_calendar)
+async def calendar_nop(callback: CallbackQuery):
     await callback.answer()
 
 
