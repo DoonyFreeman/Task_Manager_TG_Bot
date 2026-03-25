@@ -52,7 +52,7 @@ def date_selection_kb() -> InlineKeyboardMarkup:
 
 def calendar_kb(year: int, month: int) -> InlineKeyboardMarkup:
     """Генерирует inline-календарь на месяц"""
-    builder = InlineKeyboardBuilder()
+    buttons = []
 
     month_names = [
         "",
@@ -75,21 +75,26 @@ def calendar_kb(year: int, month: int) -> InlineKeyboardMarkup:
     next_month = (month + 1) if month < 12 else 1
     next_year = year if month < 12 else year + 1
 
-    builder.row(
-        InlineKeyboardButton(
-            text="◀️", callback_data=f"cal_nav_{prev_year}_{prev_month}"
-        ),
-        InlineKeyboardButton(
-            text=f"{month_names[month]} {year}", callback_data="cal_nop"
-        ),
-        InlineKeyboardButton(
-            text="▶️", callback_data=f"cal_nav_{next_year}_{next_month}"
-        ),
+    buttons.append(
+        [
+            InlineKeyboardButton(
+                text="◀️", callback_data=f"cal_nav_{prev_year}_{prev_month}"
+            ),
+            InlineKeyboardButton(
+                text=f"{month_names[month]} {year}", callback_data="cal_nop"
+            ),
+            InlineKeyboardButton(
+                text="▶️", callback_data=f"cal_nav_{next_year}_{next_month}"
+            ),
+        ]
     )
 
-    days_of_week = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-    for day in days_of_week:
-        builder.add(InlineKeyboardButton(text=day, callback_data="cal_nop"))
+    buttons.append(
+        [
+            InlineKeyboardButton(text=day, callback_data="cal_nop")
+            for day in ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+        ]
+    )
 
     first_day = datetime(year, month, 1)
     last_day = datetime(year, month, 1).replace(
@@ -97,41 +102,42 @@ def calendar_kb(year: int, month: int) -> InlineKeyboardMarkup:
     ) - timedelta(days=1)
 
     start_weekday = first_day.weekday()
-    if start_weekday == 6:
-        start_weekday = 0
-    else:
-        start_weekday += 1
-
-    empty_cells = start_weekday
-    total_cells = empty_cells + last_day.day
-
-    row = []
-    for i in range(empty_cells):
-        builder.add(InlineKeyboardButton(text=" ", callback_data="cal_nop"))
+    start_weekday = 0 if start_weekday == 6 else start_weekday + 1
 
     today = datetime.now()
+    today_date = today.date()
+
+    week_row = []
+    for _ in range(start_weekday):
+        week_row.append(InlineKeyboardButton(text=" ", callback_data="cal_nop"))
+
     for day in range(1, last_day.day + 1):
-        day_date = datetime(year, month, day)
-        if day_date.date() < today.date():
-            builder.add(InlineKeyboardButton(text=str(day), callback_data="cal_nop"))
+        day_date = datetime(year, month, day).date()
+        if day_date < today_date:
+            week_row.append(
+                InlineKeyboardButton(text=str(day), callback_data="cal_nop")
+            )
         else:
-            builder.add(
+            week_row.append(
                 InlineKeyboardButton(
                     text=str(day), callback_data=f"cal_day_{year}_{month:02d}_{day:02d}"
                 )
             )
 
-    remaining = 7 - (total_cells % 7)
-    if remaining < 7:
-        for _ in range(remaining):
-            builder.add(InlineKeyboardButton(text=" ", callback_data="cal_nop"))
+        if len(week_row) == 7:
+            buttons.append(week_row)
+            week_row = []
 
-    builder.add(
-        InlineKeyboardButton(text="🔙 Быстрый выбор даты", callback_data="cal_back")
+    if week_row:
+        while len(week_row) < 7:
+            week_row.append(InlineKeyboardButton(text=" ", callback_data="cal_nop"))
+        buttons.append(week_row)
+
+    buttons.append(
+        [InlineKeyboardButton(text="🔙 Быстрый выбор даты", callback_data="cal_back")]
     )
 
-    builder.adjust(7)
-    return builder.as_markup()
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def time_selection_kb() -> InlineKeyboardMarkup:
